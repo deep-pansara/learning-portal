@@ -1,11 +1,12 @@
-require("dotenv").config();
-import { Request, Response, NextFunction } from "express";
-import userModel, { IUser } from "../models/user.model";
-import ErrorHandler from "../utils/ErrorHandler";
-import { CatchAsyncError } from "../middleware/catchAsyncErrors";
-import jwt, { Secret } from "jsonwebtoken";
 import ejs from "ejs";
 import path from "path";
+require("dotenv").config();
+import { Request, Response, NextFunction } from "express";
+
+import { CatchAsyncError } from "../middleware/catchAsyncErrors";
+import userModel, { IUser } from "../models/user.model";
+import ErrorHandler from "../utils/ErrorHandler";
+import jwt, { Secret } from "jsonwebtoken";
 import sendMail from "../utils/sendMail";
 import { sendToken } from "../utils/jwt";
 // Register User
