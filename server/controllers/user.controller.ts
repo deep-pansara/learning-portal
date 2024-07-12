@@ -6,9 +6,15 @@ import { Request, Response, NextFunction } from "express";
 import { CatchAsyncError } from "../middleware/catchAsyncErrors";
 import userModel, { IUser } from "../models/user.model";
 import ErrorHandler from "../utils/ErrorHandler";
-import jwt, { Secret } from "jsonwebtoken";
+import jwt, { JwtPayload, Secret } from "jsonwebtoken";
 import sendMail from "../utils/sendMail";
-import { sendToken } from "../utils/jwt";
+import {
+  accessTokenOptions,
+  refreshTokenOptions,
+  sendToken,
+} from "../utils/jwt";
+import { redis } from "../utils/redis";
+import { getUserById } from "../services/user.service";
 // Register User
 interface IRegistrationBody {
   name: string;
@@ -146,3 +152,187 @@ export const loginUser = CatchAsyncError(
   }
 );
 
+//logout user
+export const logoutUser = CatchAsyncError(
+  async (req: Request | any, res: Response, next: NextFunction) => {
+    try {
+      res.cookie("access_token", "", { maxAge: 1 });
+      res.cookie("refresh_token", "", { maxAge: 1 });
+
+      const userId = req.user?._id || "";
+      redis.del(userId);
+      res.status(200).json({
+        success: true,
+        message: "Logged out successfully",
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+//update access token
+export const updateAccessToken = CatchAsyncError(
+  async (req: Request | any, res: Response, next: NextFunction) => {
+    try {
+      const refresh_token = req.cookies.refresh_token as string;
+      const decoded = jwt.verify(
+        refresh_token,
+        process.env.REFRESH_TOKEN as Secret
+      ) as JwtPayload;
+      const message = "Could not refresh token";
+      if (!decoded) {
+        return next(new ErrorHandler(message, 400));
+      }
+
+      const session = await redis.get(decoded.id as string);
+
+      if (!session) {
+        return next(new ErrorHandler(message, 400));
+      }
+
+      const user = JSON.parse(session);
+
+      const accessToken = jwt.sign(
+        { id: user._id },
+        process.env.ACCESS_TOKEN as string,
+        { expiresIn: "5m" }
+      );
+
+      const refreshToken = jwt.sign(
+        { id: user._id },
+        process.env.REFRESH_TOKEN as string,
+        { expiresIn: "3d" }
+      );
+
+      req.user= user
+
+      res.cookie("access_token", accessToken, accessTokenOptions);
+      res.cookie("refresh_token", refreshToken, refreshTokenOptions);
+
+      res.status(200).json({
+        status: "success",
+        accessToken,
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+//get user information
+export const getUserInfo = CatchAsyncError(
+  async (req: Request | any, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user?._id;
+      getUserById(userId as string, res);
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+
+//social auth
+interface ISocialAuthBody {
+  email: string;
+  name: string;
+  avatar: string;
+}
+
+
+export const socialAuth = CatchAsyncError((async(req: Request | any, res:Response,next:NextFunction)=>{
+  try {
+    const {email,name,avatar} = req.body as ISocialAuthBody;
+    const user = await userModel.findOne({email})
+    if(!user){
+      const newUser = await userModel.create({name,email,avatar})
+      sendToken(newUser, 200, res)
+    }else{
+      sendToken(user, 200, res)
+    }
+  } catch (error:any) {
+    
+    return next(new ErrorHandler(error.message, 400));
+  }
+}))
+
+//update user info  
+interface IUpdateUserInfo {
+  name?: string;
+  email?: string; 
+}
+ 
+export const updateUserInfo = CatchAsyncError(
+  async (req: Request | any, res: Response, next: NextFunction) => {
+    try {
+  const {email,name} = req.body as IUpdateUserInfo
+  const userId = req.user?._id;
+  const user = await userModel.findById(userId)
+
+  if(email && user ){
+    const isEmailExist = await userModel.findOne({email})
+    if(isEmailExist){
+      return next(new ErrorHandler("Email already exist", 400));
+    }
+    user.email = email
+  }
+  if(name && user){
+    user.name = name
+  }
+  await user?.save()
+  await redis.set(userId,JSON.stringify(user))
+
+  res.status(200).json({
+    success: true,
+    message: "User information updated successfully",
+    user
+  })
+
+  
+    } catch (error:any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  })
+
+  //update user password
+
+  interface IUpdatePassword {
+    oldPassword: string;
+    newPassword: string;
+  }
+
+  export const updatePassword = CatchAsyncError(
+    async(req:Request | any,res:Response,next:NextFunction)=>{
+      try {
+        const {oldPassword,newPassword} = req.body as IUpdatePassword
+
+        if(!oldPassword || !newPassword){
+          return next(new ErrorHandler("Please provide old password and new password", 400));  
+        }
+
+        const user = await userModel.findById(req.user?._id).select("+password")
+
+        if(user?.password === undefined ){
+          return next(new ErrorHandler("Invalid user", 400));
+        }
+
+        const isPasswordMatch = await user?.comparePassword(oldPassword)
+
+        if(!isPasswordMatch){
+          return next(new ErrorHandler("Incorrect old password", 400));
+        }
+        user.password = newPassword
+
+        await user.save()
+        await redis.set(req.user?._id, JSON.stringify(user))
+        res.status(200).json({
+          success:true,
+          user
+        })
+
+      } catch (error:any) {
+       return next(new ErrorHandler(error.message,400)) 
+      }
+    }
+  )
