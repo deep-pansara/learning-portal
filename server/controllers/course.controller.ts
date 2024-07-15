@@ -372,27 +372,27 @@ export const addReplyReview = CatchAsyncError(async(req:Request | any,res:Respon
     if(!review){
       return next(new ErrorHandler("Review not found", 404));
     }
-
+    
     const replyData :any = {
       user: req.user,
       comment,
     }
-
+    
     if(!review.commentReplies){
       review.commentReplies = []
     }
-
+    
     review.commentReplies?.push(replyData)
     await course?.save()
- 
+    
     res.status(200).json({
       success: true,
       course,
     });
-
-
-  } catch (error:any) {
     
+    
+  } catch (error:any) {
+    return next(new ErrorHandler(error.message, 500));
   }
 
 })
