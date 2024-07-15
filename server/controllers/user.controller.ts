@@ -1,21 +1,22 @@
 import ejs from "ejs";
 import path from "path";
 require("dotenv").config();
-import { Request, Response, NextFunction } from "express";
 import cloudinary from "cloudinary";
+import { Request, Response, NextFunction } from "express";
+import jwt, { JwtPayload, Secret } from "jsonwebtoken";
 
+import { getAllUserService, getUserById } from "../services/user.service";
 import { CatchAsyncError } from "../middleware/catchAsyncErrors";
 import userModel, { IUser } from "../models/user.model";
 import ErrorHandler from "../utils/ErrorHandler";
-import jwt, { JwtPayload, Secret } from "jsonwebtoken";
 import sendMail from "../utils/sendMail";
+import { redis } from "../utils/redis";
 import {
   accessTokenOptions,
   refreshTokenOptions,
   sendToken,
 } from "../utils/jwt";
-import { redis } from "../utils/redis";
-import { getUserById } from "../services/user.service";
+
 // Register User
 interface IRegistrationBody {
   name: string;
@@ -381,6 +382,17 @@ export const updateProfilePicture = CatchAsyncError(
     } catch (error: any) {
       res.send(error);
       return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+//get all user (only admin)
+export const getAllUsers = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      getAllUserService(res);
+    } catch (error: any) {
+    return next(new ErrorHandler(error.message, 500));
     }
   }
 );

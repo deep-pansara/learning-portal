@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { CatchAsyncError } from "../middleware/catchAsyncErrors";
 import ErrorHandler from "../utils/ErrorHandler";
 import cloudinary from "cloudinary";
-import { createCourse } from "../services/course.service";
+import { createCourse, getAllCoursesService } from "../services/course.service";
 import CourseModel from "../models/course.model";
 import { redis } from "../utils/redis";
 import mongoose from "mongoose";
@@ -10,6 +10,7 @@ import { name } from "ejs";
 import path from "path";
 import ejs from "ejs";
 import sendMail from "../utils/sendMail";
+import notificationModel from "../models/notification.model";
 
 //upload course
 export const uploadCourse = CatchAsyncError(
@@ -194,6 +195,12 @@ export const addQuestion = CatchAsyncError(
       };
 
       courseContent.questions.push(newQusetion);
+      //create new notification
+      await notificationModel.create({
+        user:req?.user?._id,
+        title: "New Question Recieved",
+        message:`You have a new question in ${courseContent?.title}`
+      })
 
       await course?.save();
 
@@ -257,6 +264,18 @@ export const addAnswer = CatchAsyncError(
 
       if (req.user?._id === question.user._id) {
         //create a notification
+
+        await notificationModel.create({
+          user:req?.user?._id,
+          title: "New Question Reply Recieved",
+          message:`You have a new question in ${courseContent?.title}`
+        })
+  
+
+
+
+
+
       } else {
         const data = {
           name: question.user.name,
@@ -396,3 +415,15 @@ export const addReplyReview = CatchAsyncError(async(req:Request | any,res:Respon
   }
 
 })
+
+
+//get all courses (only admin)
+export const getAllCoursesAdmin = CatchAsyncError(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      getAllCoursesService(res);
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 500));
+    }
+  }
+);
