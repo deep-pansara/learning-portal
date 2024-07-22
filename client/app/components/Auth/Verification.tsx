@@ -1,8 +1,10 @@
+import { useActivationMutation } from "@/redux/features/auth/authApi";
 import { styles } from "../../styles/style";
 import { Route } from "next";
-import React, { FC, useRef, useState } from "react";
+import React, { FC, useEffect, useRef, useState } from "react";
 import { toast } from "react-hot-toast";
 import { VscWorkspaceTrusted } from "react-icons/vsc";
+import { useSelector } from "react-redux";
 
 type Props = {
   setRoute: (route: string) => void;
@@ -16,7 +18,25 @@ type VerifyNumber = {
 };
 
 const Verification: FC<Props> = ({ setRoute }) => {
+  const { token } = useSelector((state: any) => state.auth);
+  const [activation, { isSuccess, error }] = useActivationMutation();
   const [invalidError, setInvalidError] = useState<boolean>(false);
+
+  useEffect(()=>{
+    if(isSuccess){
+      toast.success("Account activated successfully!");
+      setRoute("Login");
+    }
+    if(error){
+      if ("data" in error) {
+        const errorData = error as any;
+        toast.error(errorData.data.message);
+      }else {
+        console.log("An error accured", error)
+      }
+    }
+  },[isSuccess,error])
+
   const inputRefs = [
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
@@ -32,7 +52,17 @@ const Verification: FC<Props> = ({ setRoute }) => {
   });
 
   const verificationHandler = async () => {
-    console.log("test verification");
+    const verificationNumber = Object.values(verifyNumber).join("");
+    if(verificationNumber.length !==  4 ) {
+      toast.error("Please enter a valid verification code.");
+      setInvalidError(true);
+      return;
+    }
+
+    await activation({
+      activation_token : token,
+      activation_code: verificationNumber
+    })
   };
 
   const handleInputChange = (index: number, value: string) => {
@@ -69,7 +99,8 @@ const Verification: FC<Props> = ({ setRoute }) => {
                 : "dark:border-white border-[#0000004a]"
             }`}
             placeholder=""
-            min="0" max="9"
+            min="0"
+            max="9"
             maxLength={1}
             value={verifyNumber[key as keyof VerifyNumber]}
             onChange={(e) => handleInputChange(index, e.target.value)}

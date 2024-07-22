@@ -9,8 +9,8 @@ import {
 } from "react-icons/ai";
 import { FcGoogle } from "react-icons/fc";
 import { styles } from "../../../app/styles/style";
-// import { useRegisterMutation } from "@/redux/features/auth/authApi";
 import { toast } from "react-hot-toast";
+import { useRegisterMutation } from "../../../redux/features/auth/authApi";
 
 type Props = {
   setRoute: (route: string) => void;
@@ -26,21 +26,21 @@ const schema = Yup.object().shape({
 
 const Signup: FC<Props> = ({ setRoute }) => {
   const [show, setShow] = useState(false);
-//   const [register,{data,error,isSuccess}] = useRegisterMutation(); 
+  const [register,{data,isLoading,error,isSuccess}] = useRegisterMutation(); 
 
-//   useEffect(() => {
-//    if(isSuccess){
-//       const message = data?.message || "Registration successful";
-//       toast.success(message);
-//       setRoute("Verification");
-//    }
-//    if(error){
-//     if("data" in error){
-//       const errorData = error as any;
-//       toast.error(errorData.data.message);
-//     }
-//    }
-//   }, [isSuccess,error]);
+  useEffect(() => {
+   if(isSuccess){
+      const message = data?.message || "Registration successful";
+      toast.success(message);
+      setRoute("Verification");
+   }  
+   if(error){
+    if("data" in error){
+      const errorData = error as any;
+      toast.error(errorData.data.message);
+    }
+   }
+  }, [isSuccess,error]);
   
 
   const formik = useFormik({
@@ -51,7 +51,7 @@ const Signup: FC<Props> = ({ setRoute }) => {
         name,email,password
       };
       
-    //   await register(data);
+      await register(data);
     },
   });
 
@@ -131,7 +131,7 @@ const Signup: FC<Props> = ({ setRoute }) => {
           <span className="text-red-500 pt-2 block">{errors.password}</span>
         )}
         <div className="w-full mt-5">
-          <input type="submit" value="Sign Up" className={`${styles.button}`} />
+          <button type="submit" disabled={isLoading} className={`${styles.button}`}>{isLoading ? "please wait..." : "Sign Up"}</button>
         </div>
         <br />
         <h5 className="text-center pt-4 font-Poppins text-[14px] text-black dark:text-white">
@@ -147,7 +147,7 @@ const Signup: FC<Props> = ({ setRoute }) => {
             className="text-[#2190ff] pl-1 cursor-pointer"
             onClick={() => setRoute("Login")}
           >
-            Sign in
+           Sign In
           </span>
         </h5>
       </form>
